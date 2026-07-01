@@ -1,0 +1,547 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>registry</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,600&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<!-- Firebase (free tier) - powers the shared username database -->
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+<style>
+  :root {
+    --bg: #1B1F2A;
+    --card: #232838;
+    --card-2: #262c3d;
+    --border: #3A4152;
+    --border-soft: #2E3444;
+    --text: #EDE7DA;
+    --text-dim: #9CA3B0;
+    --accent: #E8A33D;
+    --accent-dim: #B67F2C;
+    --error: #E8604C;
+    --success: #8FBF8F;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'JetBrains Mono', monospace;
+    min-height: 100vh;
+    padding: 48px 20px 80px;
+  }
+  .wrap { max-width: 460px; margin: 0 auto; }
+  header { text-align: center; margin-bottom: 40px; }
+  header .eyebrow {
+    font-size: 11px; letter-spacing: 3px; text-transform: uppercase;
+    color: var(--accent-dim); margin-bottom: 10px;
+  }
+  header h1 {
+    font-family: 'Fraunces', serif; font-weight: 600; font-size: 34px;
+    margin: 0 0 10px; letter-spacing: 0.5px;
+  }
+  header p {
+    color: var(--text-dim); font-size: 13px; line-height: 1.6; margin: 0 auto;
+    max-width: 340px;
+  }
+
+  .tabs { display: flex; border-bottom: 1px solid var(--border); margin-bottom: 24px; }
+  .tab {
+    flex: 1; text-align: center; padding: 12px 0; cursor: pointer;
+    color: var(--text-dim); font-size: 13px; letter-spacing: 1px;
+    text-transform: uppercase; border-bottom: 2px solid transparent;
+    background: none; border-top: none; border-left: none; border-right: none;
+    font-family: inherit;
+  }
+  .tab.active { color: var(--accent); border-bottom-color: var(--accent); }
+
+  .panel { display: none; }
+  .panel.active { display: block; }
+
+  .card {
+    background: var(--card); border: 1px solid var(--border);
+    border-radius: 6px; padding: 28px 26px;
+  }
+
+  label {
+    display: block; font-size: 11px; letter-spacing: 1.5px; text-transform: uppercase;
+    color: var(--text-dim); margin-bottom: 8px; margin-top: 18px;
+  }
+  label:first-of-type { margin-top: 0; }
+
+  .uname-wrap { position: relative; }
+  input[type=text], input[type=password] {
+    width: 100%; background: var(--bg); border: 1px solid var(--border);
+    color: var(--text); font-family: 'JetBrains Mono', monospace; font-size: 15px;
+    padding: 11px 12px; border-radius: 4px; outline: none;
+  }
+  input[type=text]:focus, input[type=password]:focus { border-color: var(--accent-dim); }
+  .prefix { color: var(--text-dim); }
+
+  .hint { font-size: 12px; color: var(--text-dim); margin-top: 7px; min-height: 16px; }
+  .hint.error { color: var(--error); }
+  .hint.ok { color: var(--success); }
+
+  button.submit {
+    width: 100%; margin-top: 26px; padding: 12px; border-radius: 4px;
+    border: 1px solid var(--accent-dim); background: var(--accent);
+    color: #241A08; font-weight: 700; font-size: 13px; letter-spacing: 1.5px;
+    text-transform: uppercase; cursor: pointer; font-family: inherit;
+  }
+  button.submit:hover { background: #f0ae4c; }
+  button.submit:disabled { opacity: 0.4; cursor: not-allowed; }
+
+  .status-line { text-align: center; font-size: 12px; color: var(--text-dim); margin-top: 14px; min-height: 16px; }
+  .status-line.error { color: var(--error); }
+  .status-line.ok { color: var(--success); }
+
+  .session-card {
+    background: var(--card-2); border: 1px dashed var(--border);
+    border-radius: 4px; padding: 26px 24px; position: relative; margin-bottom: 26px;
+  }
+  .session-card .stamp {
+    position: absolute; top: 18px; right: 18px; border: 2px solid var(--success);
+    color: var(--success); font-size: 10px; font-weight: 700; letter-spacing: 2px;
+    padding: 4px 8px; border-radius: 3px; transform: rotate(6deg);
+  }
+  .session-card .who { font-size: 11px; color: var(--text-dim); letter-spacing: 1.5px; text-transform: uppercase; }
+  .session-card .name {
+    font-family: 'Fraunces', serif; font-size: 28px; font-weight: 600; margin: 6px 0 4px;
+    word-break: break-all;
+  }
+  .session-card .since { font-size: 11px; color: var(--text-dim); }
+
+  button.logout {
+    width: 100%; padding: 10px; border-radius: 4px; border: 1px solid var(--border);
+    background: none; color: var(--text-dim); font-size: 12px; letter-spacing: 1px;
+    text-transform: uppercase; cursor: pointer; font-family: inherit;
+  }
+  button.logout:hover { color: var(--text); border-color: var(--border-soft); }
+
+  .registry-note {
+    text-align: center; font-size: 11px; color: var(--text-dim); margin-top: 34px;
+    line-height: 1.7;
+  }
+  .registry-note b { color: var(--text); }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div class="eyebrow">the registry</div>
+    <h1>Claim a name</h1>
+    <p>Every identifier here belongs to exactly one person. Lowercase letters, numbers, and underscores only.</p>
+  </header>
+
+  <div id="loggedOutView">
+    <div class="tabs">
+      <button class="tab active" data-tab="register">Claim</button>
+      <button class="tab" data-tab="login">Log in</button>
+    </div>
+
+    <div class="panel active" id="panel-register">
+      <div class="card">
+        <label for="reg-username">Username</label>
+        <div class="uname-wrap">
+          <input type="text" id="reg-username" placeholder="your_name_here" autocomplete="off" spellcheck="false">
+        </div>
+        <div class="hint" id="reg-uname-hint">3–20 characters. a–z, 0–9, and _ only.</div>
+
+        <label for="reg-password">Password</label>
+        <input type="password" id="reg-password" placeholder="at least 6 characters">
+
+        <button class="submit" id="reg-submit">Claim it</button>
+        <div class="status-line" id="reg-status"></div>
+        <div class="status-line" id="reg-cooldown"></div>
+      </div>
+    </div>
+
+    <div class="panel" id="panel-login">
+      <div class="card">
+        <label for="login-username">Username</label>
+        <input type="text" id="login-username" placeholder="your_name_here" autocomplete="off" spellcheck="false">
+
+        <label for="login-password">Password</label>
+        <input type="password" id="login-password" placeholder="your password">
+
+        <button class="submit" id="login-submit">Log in</button>
+        <div class="status-line" id="login-status"></div>
+      </div>
+    </div>
+
+    <div class="registry-note" id="registryCount"></div>
+  </div>
+
+  <div id="loggedInView" style="display:none;">
+    <div class="session-card">
+      <div class="stamp">registered</div>
+      <div class="who">Logged in as</div>
+      <div class="name" id="who-name"></div>
+      <div class="since" id="who-since"></div>
+    </div>
+    <button class="logout" id="logoutBtn">Log out</button>
+  </div>
+</div>
+
+<script>
+// ====== PASTE YOUR FIREBASE CONFIG HERE ======
+// Get this from Firebase Console -> Project Settings -> Your apps -> Web app
+const firebaseConfig = {
+  apiKey: "AIzaSyBJ4xvYgBRj82RTyVnbbLcN6aXS6yQ1fAM",
+  authDomain: "names-a367c.firebaseapp.com",
+  projectId: "names-a367c",
+  storageBucket: "names-a367c.firebasestorage.app",
+  messagingSenderId: "971594261372",
+  appId: "1:971594261372:web:d7d04518cfa804b46e3af9"
+};
+firebase.initializeApp(firebaseConfig);
+const db = firebase.firestore();
+// ==============================================
+
+const USERNAME_RE = /^[a-z0-9_]{3,20}$/;
+
+const BANNED_WORDS = [
+  // English
+  "fuck","shit","bitch","asshole","cunt","dick","piss","cock","pussy",
+  "bastard","slut","whore","damn","fag","faggot","nigger","nigga","retard","rape",
+  "porn","boob","tit","penis","vagina","anal","dildo","douche",
+  "crap","hell","twat","wank","jerk","screw","suck","cum","jizz","clit",
+  "kike","spic","chink","gook","tranny","molest","pedo","incest","kkk",
+  "nazi","hitler","suicide","kys",
+  "hoe","thot","milf","dilf","orgasm","erotic","xxx","nsfw","rapist",
+  "clitoris","testicle","scrotum","semen","masturbat","blowjob","handjob",
+  // Spanish
+  "mierda","puta","puto","pendejo","culo","cono","joder","cabron","verga",
+  "chinga","pinche","maricon","gilipollas","polla","concha",
+  // French
+  "merde","putain","salope","connard","bite","chatte","encule","batard",
+  "pute","couille","enfoire",
+  // German
+  "scheisse","scheiss","arsch","fotze","wichser","hurensohn","schlampe",
+  "fick","ficken","hure",
+  // Portuguese
+  "caralho","buceta","foda","cacete","porra","corno","viado",
+  // Italian
+  "cazzo","puttana","stronzo","vaffanculo","troia","minchia","coglione"
+];
+
+// Words that are always allowed even though they contain a banned substring
+// (e.g. "assassin" contains "ass", "cockpit" contains "cock"). Safety valve
+// for common real words caught by substring matching.
+const ALLOWLIST = [
+  "assassin","assassins","assassinate","classic","class","glass","grass",
+  "pass","password","bass","brass","compass","embassy",
+  "assess","assessment","assist","assistant","associate","assume",
+  "assortment","analysis","analyst",
+  "cockpit","cockatoo","cocktail","peacock","scunthorpe"
+];
+
+function normalizeForFilter(raw) {
+  let s = raw.toLowerCase();
+  s = s.replace(/_/g, "");
+  const subs = { "0":"o","1":"i","3":"e","4":"a","5":"s","6":"b","7":"t","8":"b","9":"g","2":"z" };
+  s = s.split("").map(ch => subs[ch] !== undefined ? subs[ch] : ch).join("");
+  s = s.replace(/(.)\1+/g, "$1");
+  return s;
+}
+
+// Second pass: strip ALL digits outright (catches things like "fu2ck" where
+// the inserted digit has no letter lookalike) rather than relying on the
+// leet substitution map alone.
+function normalizeStripDigits(raw) {
+  let s = raw.toLowerCase().replace(/_/g, "").replace(/[0-9]/g, "");
+  s = s.replace(/(.)\1+/g, "$1");
+  return s;
+}
+
+// Third pass: phonetic normalization - collapses common lookalike spellings
+// so "phuck", "sh1t", "kunt", "byatch" etc still match the base word.
+function normalizePhonetic(raw) {
+  let s = raw.toLowerCase().replace(/_/g, "").replace(/[0-9]/g, "");
+  s = s
+    .replace(/ph/g, "f")
+    .replace(/ck/g, "k")
+    .replace(/qu/g, "kw")
+    .replace(/x/g, "ks")
+    .replace(/z/g, "s")
+    .replace(/y/g, "i")
+    .replace(/kk/g, "k")
+    .replace(/vv/g, "w");
+  s = s.replace(/(.)\1+/g, "$1");
+  return s;
+}
+
+function containsBannedWord(username) {
+  const rawLower = username.toLowerCase();
+
+  // Allowlist check first - a known-safe real word that happens to contain
+  // a banned substring is let through.
+  for (const safe of ALLOWLIST) {
+    if (rawLower === safe || rawLower.startsWith(safe)) return false;
+  }
+
+  const candidates = [
+    rawLower,
+    normalizeForFilter(username),
+    normalizeStripDigits(username),
+    normalizePhonetic(username)
+  ];
+
+  for (const word of BANNED_WORDS) {
+    for (const candidate of candidates) {
+      if (candidate.includes(word)) return true;
+    }
+  }
+  return false;
+}
+
+async function sha256(text) {
+  const enc = new TextEncoder().encode(text);
+  const buf = await crypto.subtle.digest("SHA-256", enc);
+  return Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2, "0")).join("");
+}
+
+function setHint(el, msg, cls) {
+  el.textContent = msg || "";
+  el.className = "hint" + (cls ? " " + cls : "");
+}
+function setStatus(el, msg, cls) {
+  el.textContent = msg || "";
+  el.className = "status-line" + (cls ? " " + cls : "");
+}
+
+const tabs = document.querySelectorAll(".tab");
+tabs.forEach(tab => {
+  tab.addEventListener("click", () => {
+    tabs.forEach(t => t.classList.remove("active"));
+    tab.classList.add("active");
+    document.querySelectorAll(".panel").forEach(p => p.classList.remove("active"));
+    document.getElementById("panel-" + tab.dataset.tab).classList.add("active");
+  });
+});
+
+const regUsername = document.getElementById("reg-username");
+const regUnameHint = document.getElementById("reg-uname-hint");
+const regPassword = document.getElementById("reg-password");
+const regSubmit = document.getElementById("reg-submit");
+const regStatus = document.getElementById("reg-status");
+const regCooldown = document.getElementById("reg-cooldown");
+
+const COOLDOWN_MS = 10 * 60 * 1000;
+let unameCheckToken = 0;
+let cooldownInterval = null;
+
+function formatRemaining(ms) {
+  const totalSec = Math.ceil(ms / 1000);
+  const m = Math.floor(totalSec / 60);
+  const s = totalSec % 60;
+  return m + ":" + String(s).padStart(2, "0");
+}
+
+async function getLastClaimAt() {
+  return parseInt(localStorage.getItem("lastClaimAt"), 10) || 0;
+}
+
+async function refreshCooldownUI() {
+  const lastClaimAt = await getLastClaimAt();
+  const elapsed = Date.now() - lastClaimAt;
+  const remaining = COOLDOWN_MS - elapsed;
+
+  if (cooldownInterval) { clearInterval(cooldownInterval); cooldownInterval = null; }
+
+  if (remaining > 0) {
+    regSubmit.disabled = true;
+    setStatus(regCooldown, "You can claim another name in " + formatRemaining(remaining) + ".", "error");
+    cooldownInterval = setInterval(async () => {
+      const rem = COOLDOWN_MS - (Date.now() - lastClaimAt);
+      if (rem <= 0) {
+        clearInterval(cooldownInterval);
+        cooldownInterval = null;
+        regSubmit.disabled = false;
+        setStatus(regCooldown, "");
+      } else {
+        setStatus(regCooldown, "You can claim another name in " + formatRemaining(rem) + ".", "error");
+      }
+    }, 1000);
+  } else {
+    regSubmit.disabled = false;
+    setStatus(regCooldown, "");
+  }
+}
+
+async function validateUsernameLive() {
+  const val = regUsername.value.trim().toLowerCase();
+  regUsername.value = val;
+  const myToken = ++unameCheckToken;
+
+  if (!val) { setHint(regUnameHint, "3–20 characters. a–z, 0–9, and _ only."); return; }
+  if (!USERNAME_RE.test(val)) {
+    setHint(regUnameHint, "Only lowercase letters, numbers, and underscores. 3–20 characters.", "error");
+    return;
+  }
+  if (containsBannedWord(val)) {
+    setHint(regUnameHint, "That name isn't allowed.", "error");
+    return;
+  }
+  setHint(regUnameHint, "Checking availability…");
+  try {
+    const doc = await db.collection("users").doc(val).get();
+    if (myToken !== unameCheckToken) return;
+    if (doc.exists) {
+      setHint(regUnameHint, "That name is already taken.", "error");
+    } else {
+      setHint(regUnameHint, "Available.", "ok");
+    }
+  } catch (e) {
+    if (myToken !== unameCheckToken) return;
+    setHint(regUnameHint, "Couldn't check availability. Try again.", "error");
+  }
+}
+
+let debounceTimer;
+regUsername.addEventListener("input", () => {
+  clearTimeout(debounceTimer);
+  debounceTimer = setTimeout(validateUsernameLive, 250);
+});
+
+regSubmit.addEventListener("click", async () => {
+  const val = regUsername.value.trim().toLowerCase();
+  const pw = regPassword.value;
+
+  setStatus(regStatus, "");
+
+  const lastClaimAt = await getLastClaimAt();
+  const remaining = COOLDOWN_MS - (Date.now() - lastClaimAt);
+  if (remaining > 0) {
+    setStatus(regStatus, "You're on cooldown for " + formatRemaining(remaining) + " more.", "error");
+    return;
+  }
+
+  if (!USERNAME_RE.test(val)) {
+    setStatus(regStatus, "Fix the username above before continuing.", "error");
+    return;
+  }
+  if (containsBannedWord(val)) {
+    setStatus(regStatus, "That name isn't allowed.", "error");
+    return;
+  }
+  if (pw.length < 6) {
+    setStatus(regStatus, "Password needs to be at least 6 characters.", "error");
+    return;
+  }
+
+  regSubmit.disabled = true;
+  setStatus(regStatus, "Claiming…");
+
+  try {
+    const existing = await db.collection("users").doc(val).get();
+    if (existing.exists) {
+      setStatus(regStatus, "That name was just taken. Try another.", "error");
+      regSubmit.disabled = false;
+      validateUsernameLive();
+      return;
+    }
+
+    const hash = await sha256(pw);
+    const record = { hash, createdAt: Date.now() };
+    await db.collection("users").doc(val).set(record);
+
+    localStorage.setItem("lastClaimAt", String(record.createdAt));
+    await bumpCount(1);
+    setStatus(regStatus, "");
+    regPassword.value = "";
+    logIn(val, record.createdAt);
+    refreshCooldownUI();
+  } catch (e) {
+    setStatus(regStatus, "Something went wrong. Try again.", "error");
+    regSubmit.disabled = false;
+  }
+});
+
+const loginUsername = document.getElementById("login-username");
+const loginPassword = document.getElementById("login-password");
+const loginSubmit = document.getElementById("login-submit");
+const loginStatus = document.getElementById("login-status");
+
+loginSubmit.addEventListener("click", async () => {
+  const val = loginUsername.value.trim().toLowerCase();
+  const pw = loginPassword.value;
+  setStatus(loginStatus, "");
+
+  if (!val || !pw) {
+    setStatus(loginStatus, "Enter a username and password.", "error");
+    return;
+  }
+
+  loginSubmit.disabled = true;
+  setStatus(loginStatus, "Checking…");
+
+  try {
+    const doc = await db.collection("users").doc(val).get();
+    if (!doc.exists) {
+      setStatus(loginStatus, "No account with that username.", "error");
+      loginSubmit.disabled = false;
+      return;
+    }
+    const record = doc.data();
+    const hash = await sha256(pw);
+    if (hash === record.hash) {
+      logIn(val, record.createdAt);
+    } else {
+      setStatus(loginStatus, "Wrong password.", "error");
+      loginSubmit.disabled = false;
+    }
+  } catch (e) {
+    setStatus(loginStatus, "Something went wrong. Try again.", "error");
+    loginSubmit.disabled = false;
+  }
+});
+
+function logIn(username, createdAt) {
+  document.getElementById("loggedOutView").style.display = "none";
+  document.getElementById("loggedInView").style.display = "block";
+  document.getElementById("who-name").textContent = username;
+  const d = new Date(createdAt);
+  document.getElementById("who-since").textContent = "since " + d.toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" });
+}
+
+document.getElementById("logoutBtn").addEventListener("click", () => {
+  document.getElementById("loggedOutView").style.display = "block";
+  document.getElementById("loggedInView").style.display = "none";
+  regPassword.value = "";
+  loginPassword.value = "";
+  setStatus(regStatus, "");
+  setStatus(loginStatus, "");
+  refreshCooldownUI();
+});
+
+const countRef = db.collection("meta").doc("stats");
+
+async function bumpCount(delta) {
+  try {
+    await db.runTransaction(async (tx) => {
+      const doc = await tx.get(countRef);
+      const current = doc.exists ? (doc.data().count || 0) : 0;
+      tx.set(countRef, { count: current + delta });
+    });
+    renderCount();
+  } catch (e) {}
+}
+
+async function renderCount() {
+  const el = document.getElementById("registryCount");
+  try {
+    const doc = await countRef.get();
+    const count = doc.exists ? (doc.data().count || 0) : 0;
+    el.innerHTML = "<b>" + count + "</b> name" + (count === 1 ? "" : "s") + " claimed so far.";
+  } catch (e) {
+    el.innerHTML = "<b>0</b> names claimed so far.";
+  }
+}
+
+renderCount();
+refreshCooldownUI();
+</script>
+</body>
+</html>
